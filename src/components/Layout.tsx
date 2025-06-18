@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useLoginModal } from '../context/loginModalContext';
 import { useAuth } from '../hooks/useAuth';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Sparkles } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { ChatMessage } from './ChatMessage';
 import ChatInput from './ChatInput';
@@ -33,6 +33,7 @@ const Layout: React.FC<LayoutProps> = ({ chats, setChats }) => {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [showLogout, setShowLogout] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [buttonLoading, setButtonLoading] = useState<string | null>(null);
   
   // Add loading states and processed sessions to prevent loops
   const [loadingStates, setLoadingStates] = useState<Set<string>>(new Set());
@@ -51,14 +52,19 @@ const Layout: React.FC<LayoutProps> = ({ chats, setChats }) => {
   );
 
   const handleSendMessageHelper = useCallback(
-    (content: string) => {
-      handleSendMessage(
-        content,
-        selectedChatId,
-        setChats,
-        location.pathname,
-        createNewSessionHelper
-      );
+    async (content: string) => {
+      setButtonLoading(content);
+      try {
+        await handleSendMessage(
+          content,
+          selectedChatId,
+          setChats,
+          location.pathname,
+          createNewSessionHelper
+        );
+      } finally {
+        setButtonLoading(null);
+      }
     },
     [selectedChatId, setChats, location.pathname, createNewSessionHelper]
   );
@@ -445,37 +451,74 @@ const Layout: React.FC<LayoutProps> = ({ chats, setChats }) => {
                 <div className="w-[100%] mx-auto max-w-md">
                   <ChatInput onSend={handleSendMessageHelper} />
                 </div>
+                <style>{`
+                  .animated-gradient {
+                    background: linear-gradient(90deg, #2A284A, #403C6F, #514F85);
+                    background-size: 200% 100%;
+                    background-position: left center;
+                    transition: background-position 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+                  }
+                  .animated-gradient:hover {
+                    background-position: right center;
+                  }
+                `}</style>
                 <div className="flex flex-col items-center justify-center w-full mt-1 ">
                   <button
                     onClick={() => handleSendMessageHelper("Book a ticket from Hyderabad to Vijayawada for  tomorrow")}
-                    className={`px-3 py-2 rounded-lg font-medium transition-all duration-200 border-2 border-white shadow-lg hover:shadow-xl hover:translate-y-[-2px] hover:scale-[1.02] ${
-                      theme === "light" 
-                        ? "bg-[rgba(229,229,229,0.8)] text-black" 
-                        : "bg-[rgba(34,34,34,0.8)] text-white"
-                    }`}                    
+                    className={`animated-gradient text-white px-4 py-1.5 text-sm rounded-full font-medium flex items-center gap-1.5`}
                   >
-                    Book a ticket from Hyderabad to Vijayawada for  tomorrow
+                    <div className="flex items-center gap-1.5">
+                      <div className="relative w-4 h-4">
+                        <style>
+                          {`
+                            @keyframes sparkle-pulse {
+                              0%, 100% { filter: brightness(0.8); transform: scale(0.9); }
+                              50% { filter: brightness(1.5); transform: scale(1.2); }
+                            }
+                            .sparkle-pulse {
+                              animation: sparkle-pulse 1.2s ease-in-out infinite;
+                            }
+                          `}
+                        </style>
+                        <Sparkles
+                          className="text-[#fbe822] sparkle-pulse"
+                          size={16}
+                          fill="#fbe822"
+                        />
+                      </div>
+                      <span>Book a ticket from Hyderabad to Vijayawada for tomorrow</span>
+                    </div>
                   </button>
-                  <div className="flex justify-center gap-2 w-[100%] max-w-md mt-2">
+                  <div className="flex flex-wrap justify-center gap-2 w-[100%] max-w-md mt-2">
                     <button
                       onClick={() => handleSendMessageHelper("Where is my Bus?")}
-                      className={`px-10 py-2 rounded-lg font-medium transition-all duration-200 border-2 border-white shadow-lg hover:shadow-xl hover:translate-y-[-2px] hover:scale-[1.02] ${
-                        theme === "light" 
-                          ? "bg-[rgba(229,229,229,0.8)] text-black" 
-                          : "bg-[rgba(34,34,34,0.8)] text-white"
-                      }`}  
+                      className={`animated-gradient text-white px-4 py-1.5 text-sm rounded-full font-medium flex items-center gap-1.5`}  
                     >
-                      Where is my Bus?
+                      <div className="flex items-center gap-1.5">
+                        <div className="relative w-4 h-4">
+                          <Sparkles
+                            className="text-[#fbe822] sparkle-pulse"
+                            size={16}
+                            fill="#fbe822"
+                          />
+                        </div>
+                        <span>Where is my Bus?</span>
+                      </div>
                     </button>
                     <button
                       onClick={() => handleSendMessageHelper("Green coins balance")}
-                      className={`px-10 py-2 rounded-lg font-medium transition-all duration-200 border-2 border-white shadow-lg hover:shadow-xl hover:translate-y-[-2px] hover:scale-[1.02] ${
-                        theme === "light" 
-                          ? "bg-[rgba(229,229,229,0.8)] text-black" 
-                          : "bg-[rgba(34,34,34,0.8)] text-white"
-                      }`}  
+                      className={`animated-gradient text-white px-4 py-1.5 text-sm rounded-full font-medium flex items-center gap-1.5`}  
                     >
-                      Green coins balance
+                      <div className="flex items-center gap-1.5">
+                        <div className="relative w-4 h-4">
+                          <Sparkles
+                            className="text-[#fbe822] sparkle-pulse"
+                            size={16}
+                            fill="#fbe822"
+                          />
+                        </div>
+                        <span>Green coins balance</span>
+                      </div>
                     </button>
                   </div>
                 </div>
