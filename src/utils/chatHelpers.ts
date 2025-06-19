@@ -131,6 +131,23 @@ export async function handleSendMessage(
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Request failed' }));
       console.error('[handleSendMessage] Error response:', errorData);
+      // Custom error toast for backend error object
+      if (errorData && errorData.error) {
+        toast.error(errorData.error + ' (400)');
+        // Remove the loading message from chat
+        setChats((prevChats) =>
+          prevChats.map((chat) =>
+            chat.id === selectedChatId
+              ? {
+                  ...chat,
+                  messages: chat.messages.filter((message) => message.id !== loadingMessageId),
+                  lastUpdated: new Date(),
+                }
+              : chat
+          )
+        );
+        return;
+      }
       throw new Error(errorData.message || `HTTP error! Status: ${response.status}`);
     }
 

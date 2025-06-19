@@ -2,9 +2,9 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Seat, Bus } from "../types/chat"
-import SeatIcon from "./Seaticon"
-import { getSeatGender } from "../utils/busUtils"
+import { Seat, Bus } from "../../types/chat"
+import SeatIcon from "./SeatIcon"
+import { getSeatGender } from "../../utils/busUtils"
 
 interface SeatLayoutProps {
   bus: Bus
@@ -305,4 +305,4 @@ const SeatLayout: React.FC<SeatLayoutProps> = ({ bus, selectedSeats, onClose }) 
   )
 }
 
-export default SeatLayout
+export default SeatLayout 

@@ -1,20 +1,22 @@
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
-import { Message } from '../types/chat';
-import { useTheme } from '../context/ThemeContext';
-import BusResults from './BusResults';
+import { Message } from '../../types/chat';
+import { useTheme } from '../../context/ThemeContext';
+import BusResults from '../bus/BusResults';
 import { Sparkles } from 'lucide-react';
-import CancellationCard from './cancellationCard';
+import CancellationCard from '../cancellation/CancellationCard';
 
 interface ChatMessageProps {
   message: Message;
   onBook: (busId: number) => void;
   selectedChatId?: string;
   setChats?: React.Dispatch<React.SetStateAction<any[]>>;
+  isLatestAIMessage?: boolean;
+  messagesEndRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-export function ChatMessage({ message, onBook, selectedChatId, setChats }: ChatMessageProps) {
+export function ChatMessage({ message, onBook, selectedChatId, setChats, isLatestAIMessage, messagesEndRef }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const { theme } = useTheme();
   const isLoading = message.isLoading || false;
@@ -69,6 +71,30 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats }: ChatM
     parsedContent.status === true &&
     typeof parsedContent.message === 'string'
   ) {
+    // Typing animation for cancellation success message
+    const [displayedText, setDisplayedText] = useState(isLatestAIMessage ? '' : parsedContent.message);
+    useEffect(() => {
+      if (!isLatestAIMessage) {
+        setDisplayedText(parsedContent.message);
+        return;
+      }
+      setDisplayedText('');
+      let i = 0;
+      let cancelled = false;
+      function typeNext() {
+        if (cancelled) return;
+        setDisplayedText(parsedContent.message.slice(0, i + 1));
+        if (messagesEndRef && messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+        if (i < parsedContent.message.length - 1) {
+          i++;
+          setTimeout(typeNext, 15);
+        }
+      }
+      typeNext();
+      return () => { cancelled = true; };
+    }, [parsedContent.message, isLatestAIMessage, messagesEndRef]);
     return (
       <div className="flex justify-start items-start py-1 mb-4 gap-1">
         <div className="flex-1 ml-2 text-left">
@@ -88,7 +114,7 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats }: ChatM
                 ),
               }}
             >
-              {parsedContent.message}
+              {displayedText}
             </ReactMarkdown>
           </div>
         </div>
@@ -234,6 +260,30 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats }: ChatM
     parsedContent.ticketData &&
     parsedContent.ticketData.invoiceNumber
   ) {
+    // Typing animation for booking summary
+    const [displayedText, setDisplayedText] = useState(isLatestAIMessage ? '' : parsedContent.summary);
+    useEffect(() => {
+      if (!isLatestAIMessage) {
+        setDisplayedText(parsedContent.summary);
+        return;
+      }
+      setDisplayedText('');
+      let i = 0;
+      let cancelled = false;
+      function typeNext() {
+        if (cancelled) return;
+        setDisplayedText(parsedContent.summary.slice(0, i + 1));
+        if (messagesEndRef && messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+        if (i < parsedContent.summary.length - 1) {
+          i++;
+          setTimeout(typeNext, 15);
+        }
+      }
+      typeNext();
+      return () => { cancelled = true; };
+    }, [parsedContent.summary, isLatestAIMessage, messagesEndRef]);
     return (
       <div className="flex justify-start items-start py-1 mb-4 gap-1">
         <div className="flex-1 ml-2 text-left">
@@ -253,7 +303,7 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats }: ChatM
                 ),
               }}
             >
-              {parsedContent.summary}
+              {displayedText}
             </ReactMarkdown>
           </div>
         </div>
@@ -269,6 +319,30 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats }: ChatM
     typeof parsedContent.summary === 'string' &&
     !parsedContent.ticketData
   ) {
+    // Typing animation for booking summary (no ticket details)
+    const [displayedText, setDisplayedText] = useState(isLatestAIMessage ? '' : parsedContent.summary);
+    useEffect(() => {
+      if (!isLatestAIMessage) {
+        setDisplayedText(parsedContent.summary);
+        return;
+      }
+      setDisplayedText('');
+      let i = 0;
+      let cancelled = false;
+      function typeNext() {
+        if (cancelled) return;
+        setDisplayedText(parsedContent.summary.slice(0, i + 1));
+        if (messagesEndRef && messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+        if (i < parsedContent.summary.length - 1) {
+          i++;
+          setTimeout(typeNext, 15);
+        }
+      }
+      typeNext();
+      return () => { cancelled = true; };
+    }, [parsedContent.summary, isLatestAIMessage, messagesEndRef]);
     return (
       <div className="flex justify-start items-start py-1 mb-4 gap-1">
         <div className="flex-1 ml-2 text-left">
@@ -288,7 +362,7 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats }: ChatM
                 ),
               }}
             >
-              {parsedContent.summary}
+              {displayedText}
             </ReactMarkdown>
           </div>
         </div>
@@ -303,7 +377,31 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats }: ChatM
     parsedContent.trim() !== '' &&
     !parsedContent.trim().startsWith('{')
   ) {
-    console.log('[ChatMessage] Rendering defensive text:', parsedContent); 
+    // Typing animation state
+    const [displayedText, setDisplayedText] = useState(isLatestAIMessage ? '' : parsedContent);
+    useEffect(() => {
+      if (!isLatestAIMessage) {
+        setDisplayedText(parsedContent);
+        return;
+      }
+      setDisplayedText(''); // Reset when message changes
+      let i = 0;
+      let cancelled = false;
+      function typeNext() {
+        if (cancelled) return;
+        setDisplayedText(parsedContent.slice(0, i + 1));
+        if (messagesEndRef && messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+        if (i < parsedContent.length - 1) {
+          i++;
+          setTimeout(typeNext, 15); // Typing speed (ms per char)
+        }
+      }
+      typeNext();
+      return () => { cancelled = true; };
+    }, [parsedContent, isLatestAIMessage, messagesEndRef]);
+
     return (
       <div className="flex justify-start items-start py-1 mb-4 gap-1">
         <div className="flex-1 ml-2 text-left">
@@ -323,7 +421,7 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats }: ChatM
                 ),
               }}
             >
-              {parsedContent}
+              {displayedText}
             </ReactMarkdown>
           </div>
         </div>

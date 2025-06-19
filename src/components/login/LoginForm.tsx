@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useTheme } from '../context/ThemeContext';
-import { useLoginModal } from '../context/loginModalContext';
+import { useTheme } from '../../context/ThemeContext';
+import { useLoginModal } from '../../context/loginModalContext';
 import { toast } from 'react-toastify';
-import { authService } from '../services/api';
+import { authService } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 
 export default function LoginForm() {

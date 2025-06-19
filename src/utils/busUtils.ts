@@ -16,22 +16,6 @@ export interface BusWithCategory extends Bus {
   };
 }
 
-// Time and date conversion functions
-export function convertToIST(utcTime: string): { date: string; time: string } {
-  const date = new Date(utcTime);
-  const formattedDate = date.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-  const formattedTime = date.toLocaleTimeString('en-IN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  return { date: formattedDate, time: formattedTime };
-}
-
 export function getAvailableCategories(bus: Bus): CategoryType[] {
   const categories: CategoryType[] = [];
   if (
@@ -301,3 +285,27 @@ export function validatePassengerDetails(passengerDetails: Passenger[]): boolean
 
 // Export the interfaces
 export type { GreenCoins, FreshCard, FinalFareCalculation };
+
+export function convertToIST(dateString: string): { date: string; time: string } {
+  const date = new Date(dateString);
+
+  // Convert to IST (UTC+5:30)
+  const istOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
+  const istDate = new Date(date.getTime() + istOffset);
+
+  // Format date as DD/MM/YYYY
+  const day = istDate.getUTCDate().toString().padStart(2, '0');
+  const month = (istDate.getUTCMonth() + 1).toString().padStart(2, '0');
+  const year = istDate.getUTCFullYear();
+  const formattedDate = `${day}/${month}/${year}`;
+
+  // Format time as HH:MM
+  const hours = istDate.getUTCHours().toString().padStart(2, '0');
+  const minutes = istDate.getUTCMinutes().toString().padStart(2, '0');
+  const formattedTime = `${hours}:${minutes}`;
+
+  return {
+    date: formattedDate,
+    time: formattedTime
+  };
+}

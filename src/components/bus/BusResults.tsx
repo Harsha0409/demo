@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import BusCard from './Buscard';
-import { Bus, Passenger, BusQueryResponse } from '../types/chat';
-import { flattenBusesByCategory } from '../utils/busUtils';
+import BusCard from './BusCard'; // Update the import to match the actual file name (e.g., BusCard.tsx)
+import { Bus, Passenger, BusQueryResponse } from '../../types/chat';
+import { flattenBusesByCategory } from '../../utils/busUtils'; 
 
 interface BusResultsProps { 
   searchQuery?: Bus[] | BusQueryResponse | any;

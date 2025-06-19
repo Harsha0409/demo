@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useRef } from 'react';
 import { Plus, X, MoreVertical, Trash2 } from 'lucide-react';
-import { Chat } from '../types/chat';
-import { Logo } from './Logo';
-import { useAuth } from '../hooks/useAuth';
+import { Chat } from '../../types/chat';
+import { Logo } from '../common/Logo';
+import { useAuth } from '../../hooks/useAuth';
 import { toast } from 'react-hot-toast';
-import { authService } from '../services/api';
+import { authService } from '../../services/api';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -270,4 +270,4 @@ export function Sidebar({
       )}
     </aside>
   );
-}
+} 

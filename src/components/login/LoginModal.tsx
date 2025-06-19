@@ -1,6 +1,6 @@
-import { useLoginModal } from '../context/loginModalContext';
+import { useLoginModal } from '../../context/loginModalContext';
 import LoginForm from './LoginForm';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
 import ReactDOM from 'react-dom';
 
 export default function LoginModal() {
