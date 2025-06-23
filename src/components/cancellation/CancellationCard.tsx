@@ -162,10 +162,27 @@ const CancellationCard: React.FC<CancellationCardProps> = ({ data, selectedChatI
       }, 100);
       return;
     }
+    const selectedSeats = selectedTravel.policy.cancelSeatResponseDto.filter(seat =>
+      selectedSeatsForCancellation.has(seat.seatNumber)
+    );
+    const policyIds = selectedSeats.map(seat => {
+      const policy = seat.seatPolicies.find(p =>
+        selectedRefundMethod === 'cash' ? !p.isCoinsPolicy : p.isCoinsPolicy
+      );
+      return policy?.id;
+    }).filter(Boolean);
+    const uniquePolicyIds = Array.from(new Set(policyIds));
+    if (uniquePolicyIds.length !== 1) {
+      setShowPolicyModal(false);
+      setTimeout(() => {
+        toast.error('Selected seats have inconsistent cancellation policies. Please select seats with the same policy.');
+      }, 100);
+      return;
+    }
+    const policyId = uniquePolicyIds[0];
     try {
       setIsProcessing(true);
       const seats = Array.from(selectedSeatsForCancellation);
-      const policyId = selectedRefundMethod === 'cash' ? 1 : 2;
       const payload = {
         seats: seats,
         policyId: policyId
@@ -266,6 +283,8 @@ const CancellationCard: React.FC<CancellationCardProps> = ({ data, selectedChatI
               travel.travel_details.source.time,
               travel.travel_details.destination.time
             );
+            const activeSeats = travel.policy.cancelSeatResponseDto.filter(seat => seat.active);
+            const totalPaid = activeSeats.reduce((sum, seat) => sum + (seat.totalFare || 0), 0);
             return (
               <div
                 key={travel.travel_details.id}
@@ -326,9 +345,9 @@ const CancellationCard: React.FC<CancellationCardProps> = ({ data, selectedChatI
                       <p className="text-sm font-bold truncate">{travel.travel_details.destination.point}</p>
                     </div>
                     <div className="text-sm text-right w-full">
-                      <div className="font-bold">Total Fare:</div>
+                      <div className="font-bold">Total Paid:</div>
                       <div>
-                        <span className="font-bold">₹{travel.policy.billDetails.find(b => b.label === "Total")?.value.replace('₹', '') || '0.00'}</span>
+                        <span className="font-bold">₹{totalPaid.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
