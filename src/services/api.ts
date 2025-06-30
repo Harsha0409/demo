@@ -1,3 +1,5 @@
+import { trackGTMEvent } from '../utils/gtm';
+
 const BASE_URL_CUSTOMER = '/api';
 console.log('BASE_URL_CUSTOMER:', BASE_URL_CUSTOMER);
 
@@ -85,6 +87,11 @@ export const authService = {
           if (profile) {
             console.log('[verifyOTP] ✅ Profile fetched successfully');
             
+            trackGTMEvent('login', {
+              method: 'otp',
+              userId: profile.id || profile.user_id || 'unknown'
+            });
+
             // Store user data in localStorage
             const userObj = {
               id: profile.id || profile.user_id || data.user?.id,
@@ -166,6 +173,9 @@ export const authService = {
     try {
       console.log('[logout] Logging out...');
       
+      const user = this.getUser();
+      trackGTMEvent('logout', { userId: user?.id || 'unknown' });
+
       // Clear cache and reset states
       profileCache = null;
       profileRequestInProgress = false;

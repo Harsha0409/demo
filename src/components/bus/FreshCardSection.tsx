@@ -1,4 +1,5 @@
 import React from 'react';
+import { trackGTMEvent } from '../../utils/gtm';
 
 interface FreshCardSectionProps {
   freshCard: any;
@@ -41,7 +42,10 @@ const FreshCardSection: React.FC<FreshCardSectionProps> = ({
           </button>
         ) : (
           <button 
-            onClick={() => setIsPurchasingFreshCard(true)}
+            onClick={() => {
+              setIsPurchasingFreshCard(true);
+              if (freshCard?.busId) trackGTMEvent('bus_card_fresh_card_add', { busId: freshCard.busId });
+            }}
             className="ml-auto text-[10px] px-2 py-1 rounded transition-colors font-medium bg-green-500 hover:bg-green-600 text-white"
           >
             Add

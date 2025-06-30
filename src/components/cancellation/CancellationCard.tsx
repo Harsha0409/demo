@@ -6,6 +6,7 @@ import { addAIMessageToChat } from '../../utils/chatHelpers';
 import { authService } from '../../services/api';
 import { formatTime, calculateDuration, formatDateForMessage } from '../common/formatUtils';
 import CancellationModal from './CancellationModal';
+import { trackGTMEvent } from '../../utils/gtm';
 
 interface CancellationCardProps {
   data: UpcomingTravelsResponse;
@@ -23,6 +24,7 @@ const CancellationCard: React.FC<CancellationCardProps> = ({ data, selectedChatI
   const [selectedSeatsForCancellation, setSelectedSeatsForCancellation] = useState<Set<string>>(new Set());
   const [selectedRefundMethod, setSelectedRefundMethod] = useState<'cash' | 'coins'>('coins');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [refundPolicyViewed, setRefundPolicyViewed] = useState(false);
 
   useEffect(() => {
     if (showPolicyModal) {
@@ -66,6 +68,7 @@ const CancellationCard: React.FC<CancellationCardProps> = ({ data, selectedChatI
       newSelected.delete(seatNumber);
     } else {
       newSelected.add(seatNumber);
+      if (selectedTravel) trackGTMEvent('cancel_card_seat_selected', { bookingId: selectedTravel.travel_details.id, seatNumber });
     }
     setSelectedSeatsForCancellation(newSelected);
   };
@@ -162,6 +165,12 @@ const CancellationCard: React.FC<CancellationCardProps> = ({ data, selectedChatI
       }, 100);
       return;
     }
+    // GTM event for confirm cancellation
+    trackGTMEvent('cancel_card_confirm', {
+      bookingId: selectedTravel.travel_details.id,
+      selectedSeats: Array.from(selectedSeatsForCancellation),
+      refundMethod: selectedRefundMethod
+    });
     const selectedSeats = selectedTravel.policy.cancelSeatResponseDto.filter(seat =>
       selectedSeatsForCancellation.has(seat.seatNumber)
     );
@@ -222,12 +231,24 @@ const CancellationCard: React.FC<CancellationCardProps> = ({ data, selectedChatI
             toast.error('Unable to cancel ticket. Please try again later.');
           }
         }, 100);
+        // GTM event for cancellation failure
+        trackGTMEvent('cancel_card_status', {
+          bookingId: selectedTravel.travel_details.id,
+          status: 'failure',
+          details: responseData
+        });
         return;
       }
       setShowPolicyModal(false);
       setTimeout(() => {
         toast.success('Ticket cancelled successfully');
       }, 100);
+      // GTM event for cancellation success
+      trackGTMEvent('cancel_card_status', {
+        bookingId: selectedTravel.travel_details.id,
+        status: 'success',
+        details: responseData
+      });
       let refundAmountText = '';
       if (selectedRefundMethod === 'coins') {
         const coinsAmount = dynamicRefundCalculation?.coinsRefund.coins || 0;
@@ -259,8 +280,24 @@ const CancellationCard: React.FC<CancellationCardProps> = ({ data, selectedChatI
       setTimeout(() => {
         toast.error((error as Error).message || 'An error occurred while cancelling the ticket');
       }, 100);
+      // GTM event for cancellation failure
+      if (selectedTravel) {
+        trackGTMEvent('cancel_card_status', {
+          bookingId: selectedTravel.travel_details.id,
+          status: 'failure',
+          details: error
+        });
+      }
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleShowRefundPolicies = (show: boolean) => {
+    setShowRefundPolicies(show);
+    if (show && !refundPolicyViewed && selectedTravel) {
+      setRefundPolicyViewed(true);
+      trackGTMEvent('cancel_card_refund_policy_viewed', { bookingId: selectedTravel.travel_details.id });
     }
   };
 
@@ -366,7 +403,7 @@ const CancellationCard: React.FC<CancellationCardProps> = ({ data, selectedChatI
         selectedSeatsForCancellation={selectedSeatsForCancellation}
         setSelectedSeatsForCancellation={setSelectedSeatsForCancellation}
         showRefundPolicies={showRefundPolicies}
-        setShowRefundPolicies={setShowRefundPolicies}
+        setShowRefundPolicies={handleShowRefundPolicies}
         selectedRefundMethod={selectedRefundMethod}
         setSelectedRefundMethod={setSelectedRefundMethod}
         isProcessing={isProcessing}

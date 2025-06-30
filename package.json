@@ -22,6 +22,7 @@
     "lucide-react": "^0.510.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-gtm-module": "^2.0.11",
     "react-hook-form": "^7.56.3",
     "react-hot-toast": "^2.5.2",
     "react-markdown": "^10.1.0",

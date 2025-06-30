@@ -1,4 +1,5 @@
 import React from 'react';
+import { trackGTMEvent } from '../../utils/gtm';
 
 interface RefundSummaryProps {
   selectedRefundMethod: 'cash' | 'coins';
@@ -51,7 +52,10 @@ const RefundSummary: React.FC<RefundSummaryProps> = ({
                   ? 'border-gray-600 bg-gray-700'
                   : 'border-gray-300 bg-gray-50'
             }`}
-            onClick={() => setSelectedRefundMethod('cash')}
+            onClick={() => {
+              setSelectedRefundMethod('cash');
+              trackGTMEvent('cancel_card_refund_method_selected', { method: 'cash' });
+            }}
           >
             <div className="flex items-start space-x-3">
               <div className="flex-shrink-0 mt-1">
@@ -105,7 +109,10 @@ const RefundSummary: React.FC<RefundSummaryProps> = ({
                   ? 'border-gray-600 bg-gray-700'
                   : 'border-gray-300 bg-gray-50'
             }`}
-            onClick={() => setSelectedRefundMethod('coins')}
+            onClick={() => {
+              setSelectedRefundMethod('coins');
+              trackGTMEvent('cancel_card_refund_method_selected', { method: 'coins' });
+            }}
           >
             <div className="flex items-start space-x-3">
               <div className="flex-shrink-0 mt-1">

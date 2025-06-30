@@ -31,6 +31,7 @@ import PassengerList from './PassengerList';
 import ModalActions from './ModalActions';
 import { toast } from 'react-toastify';
 import { authService } from '../../services/api';
+import { trackGTMEvent } from '../../utils/gtm';
 
 interface BusCardModalProps {
   isOpen: boolean;
@@ -279,11 +280,15 @@ const BusCardModal: React.FC<BusCardModalProps> = ({ isOpen, onClose, bus }) => 
   const handleSelectBoarding = (value: string) => {
     setSelectedBoardingState(value);
     setBoardingDropdownOpen(false);
+    // GTM event for boarding point selection
+    trackGTMEvent('bus_card_boarding_selected', { busId: bus.tripID, boardingPoint: value });
   };
 
   const handleSelectDropping = (value: string) => {
     setSelectedDroppingState(value);
     setDroppingDropdownOpen(false);
+    // GTM event for dropping point selection
+    trackGTMEvent('bus_card_dropping_selected', { busId: bus.tripID, droppingPoint: value });
   };
 
   const handleViewSeatLayout = () => setIsSeatLayoutOpen(true);
@@ -304,17 +309,16 @@ const BusCardModal: React.FC<BusCardModalProps> = ({ isOpen, onClose, bus }) => 
       toast.error('No green coins available to redeem');
       return;
     }
-    
     const currentFare = calculateCategoryFare(selectedSeats).total;
     const maxUsable = Math.min(greenCoins.available, Math.ceil(currentFare));
-    
     if (maxUsable <= 0) {
       toast.error('No green coins can be applied to this fare');
       return;
     }
-    
     setAppliedGreenCoins(maxUsable);
     toast.success(`₹${maxUsable} green coins will be applied!`);
+    // GTM event
+    trackGTMEvent('bus_card_green_coins_selected', { busId: bus.tripID, value: maxUsable });
   };
 
   const handleFreshCardToggle = () => {
@@ -322,22 +326,29 @@ const BusCardModal: React.FC<BusCardModalProps> = ({ isOpen, onClose, bus }) => 
       if (appliedFreshCard) {
         setAppliedFreshCard(false);
         toast.success('Fresh card discount removed');
+        // GTM event
+        trackGTMEvent('bus_card_fresh_card_removed', { busId: bus.tripID });
       } else {
         setAppliedFreshCard(true);
         toast.success('₹50 fresh card discount will be applied!');
+        // GTM event
+        trackGTMEvent('bus_card_fresh_card_selected', { busId: bus.tripID, value: 50 });
       }
     } else {
       if (!isFreshCardAvailable(freshCard)) {
         toast.error('Fresh card not available or no balance remaining');
         return;
       }
-      
       if (appliedFreshCard) {
         setAppliedFreshCard(false);
         toast.success('Fresh card discount removed');
+        // GTM event
+        trackGTMEvent('bus_card_fresh_card_removed', { busId: bus.tripID });
       } else {
         setAppliedFreshCard(true);
         toast.success(`Fresh card discount will be applied!`);
+        // GTM event
+        trackGTMEvent('bus_card_fresh_card_selected', { busId: bus.tripID, value: 50 });
       }
     }
   };
@@ -347,10 +358,14 @@ const BusCardModal: React.FC<BusCardModalProps> = ({ isOpen, onClose, bus }) => 
       setIsPurchasingFreshCard(false);
       setAppliedFreshCard(false);
       toast.success('Fresh card purchase cancelled');
+      // GTM event
+      trackGTMEvent('bus_card_fresh_card_purchase_cancelled', { busId: bus.tripID });
     } else {
       setIsPurchasingFreshCard(true);
       setAppliedFreshCard(true);
       toast.success(`Fresh card will be purchased for ₹${freshCardPurchaseAmount} with ₹50 discount applied!`);
+      // GTM event
+      trackGTMEvent('bus_card_fresh_card_purchase_initiated', { busId: bus.tripID, amount: freshCardPurchaseAmount });
     }
   };
 
@@ -359,7 +374,12 @@ const BusCardModal: React.FC<BusCardModalProps> = ({ isOpen, onClose, bus }) => 
       toast.error('Please fill in all passenger details.');
       return;
     }
-    
+    // GTM event for passenger details entry/update
+    trackGTMEvent('passenger_details_provided', {
+      busId: bus.tripID,
+      method: 'manual',
+      passengerDetails: passengerDetails
+    });
     setPassengerDetails(prevDetails => {
       const updatedDetails = [...prevDetails];
       if (editingIndex !== null) {
@@ -370,9 +390,7 @@ const BusCardModal: React.FC<BusCardModalProps> = ({ isOpen, onClose, bus }) => 
       }
       return updatedDetails;
     });
-    
     const nextIndex = editingIndex !== null ? editingIndex + 1 : currentSeatIndex + 1;
-      
     if (nextIndex < selectedSeats.length) {
       setCurrentSeatIndex(nextIndex);
       setCurrentPassenger(getInitialPassenger(nextIndex));
@@ -382,37 +400,53 @@ const BusCardModal: React.FC<BusCardModalProps> = ({ isOpen, onClose, bus }) => 
   };
 
   const handleSelectPassenger = (backendPassenger: Passenger) => {
-    const seatGender = getSeatGender(bus, selectedSeats[currentSeatIndex]);
-    const gender = seatGender === 'female' ? 'Female' : backendPassenger.gender;
-    
-    const selectedPassenger = {
+    const newPassengerData = {
       name: backendPassenger.name,
       age: backendPassenger.age,
-      gender
+      gender: backendPassenger.gender,
     };
-    
+
+    // Immediately update the passenger list for the current seat
     setPassengerDetails(prevDetails => {
       const updatedDetails = [...prevDetails];
-      if (editingIndex !== null) {
-        updatedDetails[editingIndex] = selectedPassenger;
-        setEditingIndex(null);
-      } else {
-        updatedDetails[currentSeatIndex] = selectedPassenger;
-      }
+      updatedDetails[currentSeatIndex] = newPassengerData;
       return updatedDetails;
     });
-    
-    const nextIndex = editingIndex !== null ? editingIndex + 1 : currentSeatIndex + 1;
-      
+
+    // Track the event
+    trackGTMEvent('passenger_details_provided', {
+      busId: bus.tripID,
+      method: 'selection',
+      passenger: newPassengerData,
+    });
+
+    // Advance to the next passenger form
+    const nextIndex = currentSeatIndex + 1;
     if (nextIndex < selectedSeats.length) {
       setCurrentSeatIndex(nextIndex);
       setCurrentPassenger(getInitialPassenger(nextIndex));
     } else {
+      // All passengers are filled, clear the form
       setCurrentPassenger({ name: '', age: undefined, gender: 'Male' });
     }
   };
 
   const handleConfirmPayment = async () => {
+    // GTM event for confirm payment attempt (with all details)
+    const paymentPayload = {
+      busId: bus.tripID,
+      passengerDetails,
+      selectedBoarding,
+      selectedDropping,
+      appliedGreenCoins,
+      appliedFreshCard,
+      isPurchasingFreshCard,
+      finalFare: calculateFinalFare(),
+    };
+    trackGTMEvent('block', {
+      payload: paymentPayload
+    });
+
     const filledPassengers = passengerDetails.filter(p => p.name && p.age !== undefined && p.gender);
   
     if (filledPassengers.length < selectedSeats.length) {
@@ -504,6 +538,8 @@ const BusCardModal: React.FC<BusCardModalProps> = ({ isOpen, onClose, bus }) => 
 
       if (!response.ok) {
         const errorData = await response.json();
+        // GTM event for payment failure
+        trackGTMEvent('bus_card_payment_status', { busId: bus.tripID, status: 'failure', error: errorData.message });
         throw new Error(errorData.message || 'Failed to block ticket');
       }
 
@@ -531,6 +567,8 @@ const BusCardModal: React.FC<BusCardModalProps> = ({ isOpen, onClose, bus }) => 
       window.location.href = data.payment_url;
 
     } catch (error: any) {
+      // GTM event for payment failure
+      trackGTMEvent('bus_card_payment_status', { busId: bus.tripID, status: 'failure', error: error.message });
       toast.error(error.message || 'An error occurred during payment.');
     } finally {
       setIsProcessing(false);
@@ -734,6 +772,7 @@ const BusCardModal: React.FC<BusCardModalProps> = ({ isOpen, onClose, bus }) => 
             setAppliedGreenCoins={setAppliedGreenCoins}
             onRedeem={handleRedeemGreenCoins}
             theme={theme}
+            busId={bus.tripID}
           />
           <FreshCardSection
             freshCard={freshCard}

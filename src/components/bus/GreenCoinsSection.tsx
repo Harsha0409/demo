@@ -1,11 +1,14 @@
 import React from 'react';
+import { trackGTMEvent } from '../../utils/gtm';
+import { GreenCoins } from '../../types/chat';
 
 interface GreenCoinsSectionProps {
-  greenCoins: any;
+  greenCoins: GreenCoins | null;
   appliedGreenCoins: number;
   setAppliedGreenCoins: (val: number) => void;
   onRedeem: () => void;
   theme: string;
+  busId: number;
 }
 
 const GreenCoinsSection: React.FC<GreenCoinsSectionProps> = ({
@@ -13,6 +16,7 @@ const GreenCoinsSection: React.FC<GreenCoinsSectionProps> = ({
   appliedGreenCoins,
   setAppliedGreenCoins,
   onRedeem,
+  busId,
 }) => {
   return (
     <div className="flex flex-col justify-between bg-gray-50 dark:bg-gray-700 rounded-lg px-2 py-2 flex-1 min-h-[3rem]">
@@ -27,7 +31,10 @@ const GreenCoinsSection: React.FC<GreenCoinsSectionProps> = ({
         {appliedGreenCoins > 0 ? (
           <div className="flex items-center space-x-1">
             <button
-              onClick={() => setAppliedGreenCoins(0)}
+              onClick={() => {
+                setAppliedGreenCoins(0);
+                trackGTMEvent('bus_card_green_coins_removed', { busId: busId });
+              }}
               className="text-[10px] px-2 py-0.5 rounded-full transition-colors bg-red-400 hover:bg-red-500 text-white font-bold"
             >
               Remove

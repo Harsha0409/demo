@@ -3,19 +3,69 @@ import { BusWithCategory, getCategoryStyle, getCategorySeats, calculateCategoryF
 import { convertToIST } from '../../utils/dateHelpers';
 import CategoryBadge from '../common/CategoryBadge';
 import BusCardModal from './BusCardModal';
+import { trackGTMEvent } from '../../utils/gtm';
 
 interface BusCardProps {
   bus: BusWithCategory;
   onBook: (busId: number) => void;
+  chatId?: string;
+  content?: string;
+  analytics?: any;
+  recommendations?: any[];
 }
 
-const BusCard: React.FC<BusCardProps> = ({ bus, onBook }) => {
+const BusCard: React.FC<BusCardProps> = ({ bus, onBook, chatId, content, analytics, recommendations }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const allSeats = getCategorySeats(bus, bus.category);
   const categoryStyle = getCategoryStyle(bus.category);
   const originalFare = calculateCategoryFare(allSeats);
 
   const handleCardClick = () => {
+    // Determine displayed boarding point
+    let displayedBoarding = null;
+    if (bus.recommended_boarding_points?.length) {
+      const match = bus.allBoardingPoints.find(bp =>
+        bp.boarding_point.name === bus.recommended_boarding_points?.[0]?.name
+      );
+      if (match) displayedBoarding = match.boarding_point;
+    }
+    if (!displayedBoarding) {
+      displayedBoarding = bus.allBoardingPoints[0]?.boarding_point || null;
+    }
+
+    // Determine displayed dropping point
+    let displayedDropping = null;
+    if (bus.recommended_dropping_points?.length) {
+      const match = bus.allDroppingPoints.find(dp =>
+        dp.dropping_point.name === bus.recommended_dropping_points?.[0]?.name
+      );
+      if (match) displayedDropping = match.dropping_point;
+    }
+    if (!displayedDropping) {
+      displayedDropping = bus.allDroppingPoints[0]?.dropping_point || null;
+    }
+
+    const eventPayload = {
+      type: 'bus_card',
+      chatId,
+      content,
+      analytics,
+      bus_recommendations: recommendations,
+      tripId: bus.tripID,
+      seat_category: bus.category,
+      displayed_boarding_point: displayedBoarding ? { name: displayedBoarding.name, landmark: displayedBoarding.landmark } : null,
+      displayed_dropping_point: displayedDropping ? { name: displayedDropping.name, landmark: displayedDropping.landmark } : null,
+    };
+
+    const recommendedSeats = allSeats.map(seat => `${seat.seat_number}${seat.type === 'window' ? 'W' : 'A'}`);
+
+    trackGTMEvent('look', {
+      tripId: bus.tripID,
+      boarding: eventPayload.displayed_boarding_point,
+      dropping: eventPayload.displayed_dropping_point,
+      seats: recommendedSeats
+    });
+
     setIsModalOpen(true);
   };
 

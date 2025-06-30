@@ -154,37 +154,41 @@ export async function handleSendMessage(
     const responseText = await response.text();
     console.log('[handleSendMessage] Response text:', responseText);
     
-    let assistantContent: any = '';
+    let assistantContent: any;
 
     try {
-      // Try to parse as JSON
+      // Always try to parse as JSON
       const parsed = JSON.parse(responseText);
       console.log('[handleSendMessage] Parsed response:', parsed);
 
-      if (parsed?.data?.upcoming_travels || parsed?.upcoming_travels) {
-        // This is cancellation data - preserve the structure
-        assistantContent = parsed.data ? parsed : { data: parsed };
-      } else if (
-        parsed &&
-        typeof parsed === 'object' &&
-        'recommendations' in parsed &&
-        Array.isArray(parsed.recommendations)
-      ) {
-        assistantContent = parsed;
-      } else if (
-        parsed &&
-        typeof parsed === 'object' &&
-        'reply' in parsed &&
-        typeof parsed.reply === 'string'
-      ) {
-        // Convert URLs to markdown links in the reply
-        assistantContent = convertUrlsToMarkdownLinks(parsed.reply);
+      // Explicitly check for known JSON structures
+      if (parsed && typeof parsed === 'object') {
+        if (Array.isArray(parsed.recommendations)) {
+          // It's a bus card
+          assistantContent = parsed;
+        } else if (parsed.data?.upcoming_travels || parsed.upcoming_travels) {
+          // It's cancellation data
+          assistantContent = parsed.data ? parsed : { data: parsed };
+        } else if (typeof parsed.reply === 'string') {
+          // It's a structured text reply, extract only the text
+          assistantContent = convertUrlsToMarkdownLinks(parsed.reply);
+        } else if (typeof parsed.summary === 'string' && parsed.ticketData) {
+          // It's a ticket details object
+          assistantContent = parsed;
+        } else if (typeof parsed.summary === 'string') {
+          // It's a ticket summary object
+           assistantContent = parsed;
+        } else {
+          // It's some other JSON object we don't have a component for, treat as text
+          assistantContent = convertUrlsToMarkdownLinks(parsed.reply || responseText);
+        }
       } else {
-        assistantContent = responseText;
+        // It's not a valid object, treat as plain text
+        assistantContent = convertUrlsToMarkdownLinks(responseText);
       }
     } catch (parseError) {
+      // Parsing failed, it's plain text
       console.log('[handleSendMessage] Response is not JSON, using as text');
-      // Convert URLs to markdown links in plain text response
       assistantContent = convertUrlsToMarkdownLinks(responseText);
     }
 

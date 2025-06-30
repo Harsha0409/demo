@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import { Message } from '../../types/chat';
@@ -6,6 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import BusResults from '../bus/BusResults';
 import { Sparkles } from 'lucide-react';
 import CancellationCard from '../cancellation/CancellationCard';
+import { trackGTMEvent } from '../../utils/gtm';
 
 interface ChatMessageProps {
   message: Message;
@@ -21,12 +22,12 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats, isLates
   const { theme } = useTheme();
   const isLoading = message.isLoading || false;
   const [minTimePassed, setMinTimePassed] = useState(false);
+  const eventTrackedRef = useRef(false);
 
   // Always try to parse stringified JSON if possible
   let parsedContent: any = message.content;
   let isMalformedRecommendationString = false;
 
-  // Try to parse if it's a string and looks like JSON
   if (typeof message.content === 'string') {
     try {
       parsedContent = JSON.parse(message.content);
@@ -42,19 +43,81 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats, isLates
   }
 
   useEffect(() => {
-    console.log('[ChatMessage] typeof content:', typeof message.content, message.content);
-    console.log('[ChatMessage] typeof parsedContent:', typeof parsedContent, parsedContent);
-  }, [message.content, parsedContent]);
+    // This effect ensures each message is tracked exactly once.
+    if (eventTrackedRef.current) {
+      return;
+    }
 
-  const showLoader = (isLoading && !isUser) || (!minTimePassed && !isUser);
+    let gtmData: any = null;
+    let eventName: string = '';
+
+    if (isUser) {
+      eventName = 'user_message';
+      gtmData = {
+        type: 'text',
+        content: typeof message.content === 'string' ? message.content : '',
+        chatId: selectedChatId,
+        gtm: (message as any).gtm,
+        method: (message as any).method,
+        userId: (message as any).userId,
+      };
+    } else { // This is an AI Message
+      eventName = 'ai_message';
+      if (typeof parsedContent === 'object' && parsedContent !== null) {
+        if (Array.isArray(parsedContent.recommendations)) {
+          const recommendations = parsedContent.recommendations || [];
+          const uniqueTripIds = new Set(recommendations.map((rec: any) => rec.tripID));
+          const total_recommendation_cards = uniqueTripIds.size;
+          const total_recommended_seats_by_category: { [key: string]: number } = {};
+          let total_recommended_seats = 0;
+          recommendations.forEach((rec: any) => {
+            if (rec.recommended_seats) {
+              for (const category in rec.recommended_seats) {
+                const categorySeats = rec.recommended_seats[category];
+                const count = (categorySeats.window?.length || 0) + (categorySeats.aisle?.length || 0);
+                total_recommended_seats_by_category[category] = (total_recommended_seats_by_category[category] || 0) + count;
+                total_recommended_seats += count;
+              }
+            }
+          });
+          gtmData = {
+            type: 'bus_card',
+            bus_recommendations: parsedContent,
+            chatId: selectedChatId,
+            analytics: {
+              total_recommendation_cards,
+              total_recommended_seats,
+              total_recommended_seats_by_category,
+            }
+          };
+        } else if (parsedContent.ticketData && parsedContent.ticketData.invoiceNumber) {
+          eventName = 'book';
+          gtmData = { ticketData: parsedContent.ticketData };
+        } else if (parsedContent.success === true || parsedContent.data?.upcoming_travels) {
+          gtmData = { type: 'cancel_card', data: parsedContent, chatId: selectedChatId };
+        } else if (parsedContent.status === true && typeof parsedContent.message === 'string') {
+          gtmData = { type: 'cancellation_success', data: parsedContent, chatId: selectedChatId };
+        } else if (typeof parsedContent.summary === 'string' && !parsedContent.ticketData) {
+          gtmData = { type: 'ticket_summary', data: parsedContent, chatId: selectedChatId };
+        } else if (Object.keys(parsedContent).length > 0 && !isMalformedRecommendationString) {
+          gtmData = { type: 'generic_json', data: parsedContent, chatId: selectedChatId };
+        }
+      } else if (typeof parsedContent === 'string' && parsedContent.trim() !== '' && !parsedContent.trim().startsWith('{')) {
+        gtmData = { type: 'text', content: parsedContent, chatId: selectedChatId };
+      }
+    }
+
+    if (eventName && gtmData) {
+      trackGTMEvent(eventName, gtmData);
+      eventTrackedRef.current = true;
+    }
+  }, [message.id, isUser, parsedContent, selectedChatId, isMalformedRecommendationString]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
     if (isLoading && !isUser) {
       setMinTimePassed(false);
-      timer = setTimeout(() => {
-        setMinTimePassed(true);
-      }, 2000);
+      timer = setTimeout(() => setMinTimePassed(true), 2000);
     } else {
       setMinTimePassed(false);
     }
@@ -238,17 +301,63 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats, isLates
     );
   }
 
-  // --- RAW TICKET DATA FILTERING (prevent JSON display) ---
+  // --- TICKET SUMMARY RENDERING (without ticket details) ---
   if (
     !isUser &&
     typeof parsedContent === 'object' &&
     parsedContent !== null &&
-    parsedContent.ticketData &&
-    parsedContent.ticketData.invoiceNumber &&
-    !parsedContent.summary
+    typeof parsedContent.summary === 'string' &&
+    !parsedContent.ticketData
   ) {
-    // This is raw ticket data without summary - don't render it
-    return null;
+    // Typing animation for booking summary (no ticket details)
+    const [displayedText, setDisplayedText] = useState(isLatestAIMessage ? '' : parsedContent.summary);
+    useEffect(() => {
+      if (!isLatestAIMessage) {
+        setDisplayedText(parsedContent.summary);
+        return;
+      }
+      setDisplayedText('');
+      let i = 0;
+      let cancelled = false;
+      function typeNext() {
+        if (cancelled) return;
+        setDisplayedText(parsedContent.summary.slice(0, i + 1));
+        if (messagesEndRef && messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+        if (i < parsedContent.summary.length - 1) {
+          i++;
+          setTimeout(typeNext, 15);
+        }
+      }
+      typeNext();
+      return () => { cancelled = true; };
+    }, [parsedContent.summary, isLatestAIMessage, messagesEndRef]);
+    return (
+      <div className="flex justify-start items-start py-1 mb-4 gap-1">
+        <div className="flex-1 ml-2 text-left">
+          <div className="flex items-center gap-1 justify-between">
+            <span className="font-medium text-gray-900 dark:text-gray-100">
+              <span className="text-[#1765f3] dark:text-[#fbe822]">Ṧ</span>.AI
+            </span>
+          </div>
+          <div className="prose dark:prose-invert max-w-none mt-1 text-xs sm:text-sm">
+            <ReactMarkdown
+              remarkPlugins={[remarkBreaks]}
+              components={{
+                a: (props) => (
+                  <a {...props} className="text-blue-600 underline" target="_blank" rel="noopener noreferrer">
+                    {props.children}
+                  </a>
+                ),
+              }}
+            >
+              {displayedText}
+            </ReactMarkdown>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // --- TICKET DETAILS RENDERING ---
@@ -256,7 +365,6 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats, isLates
     !isUser &&
     typeof parsedContent === 'object' &&
     parsedContent !== null &&
-    typeof parsedContent.summary === 'string' &&
     parsedContent.ticketData &&
     parsedContent.ticketData.invoiceNumber
   ) {
@@ -311,46 +419,13 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats, isLates
     );
   }
 
-  // --- TICKET SUMMARY RENDERING (without ticket details) ---
-  if (
-    !isUser &&
-    typeof parsedContent === 'object' &&
-    parsedContent !== null &&
-    typeof parsedContent.summary === 'string' &&
-    !parsedContent.ticketData
-  ) {
-    // Typing animation for booking summary (no ticket details)
-    const [displayedText, setDisplayedText] = useState(isLatestAIMessage ? '' : parsedContent.summary);
-    useEffect(() => {
-      if (!isLatestAIMessage) {
-        setDisplayedText(parsedContent.summary);
-        return;
-      }
-      setDisplayedText('');
-      let i = 0;
-      let cancelled = false;
-      function typeNext() {
-        if (cancelled) return;
-        setDisplayedText(parsedContent.summary.slice(0, i + 1));
-        if (messagesEndRef && messagesEndRef.current) {
-          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
-        if (i < parsedContent.summary.length - 1) {
-          i++;
-          setTimeout(typeNext, 15);
-        }
-      }
-      typeNext();
-      return () => { cancelled = true; };
-    }, [parsedContent.summary, isLatestAIMessage, messagesEndRef]);
+  const showLoader = (isLoading && !isUser) || (!minTimePassed && !isUser);
+
+  // User message: always render as markdown/text
+  if (isUser) {
     return (
-      <div className="flex justify-start items-start py-1 mb-4 gap-1">
-        <div className="flex-1 ml-2 text-left">
-          <div className="flex items-center gap-1 justify-between">
-            <span className="font-medium text-gray-900 dark:text-gray-100">
-              <span className="text-[#1765f3] dark:text-[#fbe822]">Ṧ</span>.AI
-            </span>
-          </div>
+      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} items-start py-1 mb-4 gap-1`}>
+        <div className={`flex-1 ${!isUser ? 'ml-2' : 'mr-2'} ${isUser ? 'text-right' : 'text-left'}`}>
           <div className="prose dark:prose-invert max-w-none mt-1 text-xs sm:text-sm">
             <ReactMarkdown
               remarkPlugins={[remarkBreaks]}
@@ -362,8 +437,30 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats, isLates
                 ),
               }}
             >
-              {displayedText}
+              {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
             </ReactMarkdown>
+          </div>
+        </div>
+        <div className="flex-shrink-0">
+          <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-7 h-7">
+              <circle
+                cx="256"
+                cy="256"
+                r="256"
+                fill={theme === 'dark' ? '#FBE822' : '#1765F3'}
+              />
+              <circle
+                cx="256"
+                cy="192"
+                r="80"
+                fill={theme === 'dark' ? '#1765F3' : '#FBE822'}
+              />
+              <path
+                d="M256 288 C 160 288, 80 352, 80 432 L 432 432 C 432 352, 352 288, 256 288 Z"
+                fill={theme === 'dark' ? '#1765F3' : '#FBE822'}
+              />
+            </svg>
           </div>
         </div>
       </div>
@@ -468,47 +565,19 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats, isLates
     );
   }
 
-  // User message: always render as markdown/text
-  if (isUser) {
-    return (
-      <div className="flex justify-end items-start py-1 mb-4 gap-1">
-        <div className="flex-1 mr-2 text-right">
-          <div className="prose dark:prose-invert max-w-none mt-1 text-xs sm:text-sm">
-            <ReactMarkdown remarkPlugins={[remarkBreaks]}>
-              {typeof message.content === 'string'
-                ? message.content
-                : JSON.stringify(message.content, null, 2)}
-            </ReactMarkdown>
-          </div>
-        </div>
-        <div className="flex-shrink-0">
-          <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-7 h-7">
-              <circle
-                cx="256"
-                cy="256"
-                r="256"
-                fill={theme === 'dark' ? '#FBE822' : '#1765F3'}
-              />
-              <circle
-                cx="256"
-                cy="192"
-                r="80"
-                fill={theme === 'dark' ? '#1765F3' : '#FBE822'}
-              />
-              <path
-                d="M256 288 C 160 288, 80 352, 80 432 L 432 432 C 432 352, 352 288, 256 288 Z"
-                fill={theme === 'dark' ? '#1765F3' : '#FBE822'}
-              />
-            </svg>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Fallback: Malformed recommendations string
-  if (isMalformedRecommendationString) {
+  // Fallback for any other JSON object - render it as a code block
+  if (
+    !isUser &&
+    typeof parsedContent === 'object' &&
+    parsedContent !== null &&
+    !parsedContent.recommendations &&
+    !parsedContent.data?.upcoming_travels &&
+    !parsedContent.status &&
+    !parsedContent.summary &&
+    !parsedContent.ticketData &&
+    Object.keys(parsedContent).length > 0 &&
+    !isMalformedRecommendationString
+  ) {
     return (
       <div className="flex justify-start items-start py-1 mb-4 gap-1">
         <div className="flex-1 ml-2 text-left">
@@ -517,79 +586,13 @@ export function ChatMessage({ message, onBook, selectedChatId, setChats, isLates
               <span className="text-[#1765f3] dark:text-[#fbe822]">Ṧ</span>.AI
             </span>
           </div>
-          <div className="mt-2 w-full text-yellow-700 dark:text-yellow-300">
-            <div className="p-2 border border-yellow-400 rounded bg-yellow-50 dark:bg-yellow-900/30">
-              Sorry, bus recommendations could not be displayed due to a data formatting issue.
-            </div>
-          </div>
+          <pre className="mt-2 p-2 rounded-md bg-gray-100 dark:bg-gray-800 text-xs overflow-x-auto">
+            <code>{JSON.stringify(parsedContent, null, 2)}</code>
+          </pre>
         </div>
       </div>
     );
   }
 
-  // Fallback: Render as markdown/text (but filter out raw ticket data)
-  if (
-    !isUser &&
-    typeof parsedContent === 'object' &&
-    parsedContent !== null &&
-    (parsedContent.ticketData || parsedContent.passengerData || parsedContent.billItems)
-  ) {
-    // This looks like raw ticket data - don't render it as JSON
-    console.log('[ChatMessage] Filtering out raw ticket data:', parsedContent);
     return null;
-  }
-
-  return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} items-start py-1 mb-4 gap-1`}>
-      <div className={`flex-1 ${!isUser ? 'ml-2' : 'mr-2'} ${isUser ? 'text-right' : 'text-left'}`}>
-        <div className="flex items-center gap-1 justify-between">
-          <span className="font-medium text-gray-900 dark:text-gray-100">
-            {!isUser && (
-              <>
-                <span className="text-[#1765f3] dark:text-[#fbe822]">Ṧ</span>.AI
-              </>
-            )}
-          </span>
-        </div>
-        <div className="prose dark:prose-invert max-w-none mt-1 text-xs sm:text-sm">
-          <ReactMarkdown
-            remarkPlugins={[remarkBreaks]}
-            components={{
-              a: (props) => (
-                <a {...props} className="text-blue-600 underline" target="_blank" rel="noopener noreferrer">
-                  {props.children}
-                </a>
-              ),
-            }}
-          >
-            {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
-          </ReactMarkdown>
-        </div>
-      </div>
-      {isUser && (
-        <div className="flex-shrink-0">
-          <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" className="w-7 h-7">
-              <circle
-                cx="256"
-                cy="256"
-                r="256"
-                fill={theme === 'dark' ? '#FBE822' : '#1765F3'}
-              />
-              <circle
-                cx="256"
-                cy="192"
-                r="80"
-                fill={theme === 'dark' ? '#1765F3' : '#FBE822'}
-              />
-              <path
-                d="M256 288 C 160 288, 80 352, 80 432 L 432 432 C 432 352, 352 288, 256 288 Z"
-                fill={theme === 'dark' ? '#1765F3' : '#FBE822'}
-              />
-            </svg>
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
