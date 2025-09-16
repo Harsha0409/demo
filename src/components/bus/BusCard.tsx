@@ -30,7 +30,6 @@ const BusCard: React.FC<BusCardProps> = ({
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const allSeats = getCategorySeats(bus, bus.category);
-  console.log(allSeats, "all seats list asdf");
   const categoryStyle = getCategoryStyle(bus.category);
   const originalFare = calculateCategoryFare(allSeats);
 

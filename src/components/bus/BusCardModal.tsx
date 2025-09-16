@@ -64,7 +64,7 @@ const BusCardModal: React.FC<BusCardModalProps> = ({
   const [isPurchasingFreshCard, setIsPurchasingFreshCard] =
     useState<boolean>(false);
 
-  const [freshCardPurchaseAmount] = useState(500); // Updated to match your default
+  const freshCardPurchaseAmount = freshCard?.fare ?? 0;
 
   // Dropdown state
   const [boardingDropdownOpen, setBoardingDropdownOpen] = useState(false);
@@ -100,7 +100,6 @@ const BusCardModal: React.FC<BusCardModalProps> = ({
   // Seat and passenger state
   const allSeats = getCategorySeats(bus, bus.category);
   const [selectedSeats, setSelectedSeats] = useState(allSeats);
-  console.log(selectedSeats, "selected seats asdf");
 
   // Passenger management
   const getInitialPassenger = (index: number = 0) => {

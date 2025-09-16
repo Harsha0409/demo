@@ -36,7 +36,13 @@ const FreshCardSection: React.FC<FreshCardSectionProps> = ({
         </div>
         {isFreshCardAvailable(freshCard) || isPurchasingFreshCard ? (
           <button
-            onClick={() => setAppliedFreshCard(!appliedFreshCard)}
+            onClick={() => {
+              if (isPurchasingFreshCard) {
+                setIsPurchasingFreshCard(false);
+              } else {
+                setAppliedFreshCard(!appliedFreshCard);
+              }
+            }}
             className={`ml-auto text-[10px] px-2 py-1 rounded transition-colors font-medium ${
               appliedFreshCard
                 ? "bg-red-400 hover:bg-red-500 text-white"
